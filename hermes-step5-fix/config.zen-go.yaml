@@ -1,0 +1,64 @@
+# ============================================================
+# ~/.hermes/config.yaml 병합용 — OpenCode Go 릴레이 구성 (2026-10-17)
+# 근거: hermes-agent main 소스 + Go 공식문서 + 실시간 프로브
+#   - Go 릴레이: https://opencode.ai/zen/go/v1 (37모델, step-5-preview 포함)
+#   - x-opencode-session: opencode.ai 호스트면 Hermes가 자동 부착
+#     (agent/opencode_affinity.py — main/auxiliary 전부)
+#   - step-5-preview wire: /v1/chat/completions (자동 라우팅)
+# 사전: OpenCode Console(opencode.ai/console) → Go($10/월) 구독 → API 키 발급
+#       hermes config set OPENCODE_GO_API_KEY "<키>"   (.env에 저장)
+#       Hermes ≥ v0.21.1 (세션헤더 PR #101864; 구버전이면 업데이트)
+# ============================================================
+
+# ---------- 메인 모델: Go 릴레이의 Step 5 Preview ----------
+model:
+  provider: opencode-go
+  model: step-5-preview
+# CLI 대안: hermes config set model opencode-go/step-5-preview
+
+# ---------- aside(보조) 슬롯: Go 릴레이의 저렴한 모델로 ----------
+# 보조 작업은 메인보다 싼 모델이 적합 (압축/제목 등 대량 호출)
+auxiliary:
+  compression:
+    provider: opencode-go
+    model: glm-5.3-flash
+  title_generation:
+    provider: opencode-go
+    model: glm-5.3-flash
+  vision:
+    provider: opencode-go          # Go에 vision 가능 모델 있음 (claude-haiku-5-5 등)
+    model: claude-haiku-5-5
+  approval:
+    provider: opencode-go
+    model: glm-5.3-flash
+  # base_url 직결 대안 (provider 옵션이 막힌 구버전용 — opencode.ai 호스트라
+  # 세션 헤더는 여전히 자동 부착됨):
+  # compression:
+  #   provider: main
+  #   model: glm-5.3-flash
+  #   base_url: https://opencode.ai/zen/go/v1
+  #   api_key: <GO_KEY>            # 비밀은 .env 권장: 위 provider 방식 사용
+
+# ---------- 폴백 체인: Go 소진/장애 시 ----------
+fallback_providers:
+  # 1) StepFun 공식 직결 (종량제, 100 RPM — 전턴 구성)
+  - provider: stepfun
+    model: step-5-preview
+  # 2) OpenRouter 유료 (플랫폼 요청캡 없음)
+  - provider: openrouter
+    model: stepfun/step-5-preview
+  # 3) 저비용 최후 수단
+  - provider: stepfun
+    model: step-3.5-flash
+
+fallback:
+  min_switch_reset_seconds: 120    # 짧은 reset은 전환 대신 백오프 (캐시 보존)
+
+# ---------- .env (~/.hermes/.env) ----------
+# OPENCODE_GO_API_KEY=     ← opencode.ai/console → Go 구독 → API key
+# STEPFUN_API_KEY=         ← fallback 1순위용 (platform.stepfun.ai)
+# OPENROUTER_API_KEY=      ← fallback 2순위용 (선택)
+#
+# 주의: 기존 aside의 zen free(opencode-zen + -free 모델) 구성은 제거할 것 —
+# 익명 zen free 티어는 2026-09부터 앱 전용 게이트(403 FreeTierError)로
+# 서드파티 클라이언트에서 사용 불가 (실측 확인, zen-free-status.md 참조)

@@ -1,0 +1,38 @@
+# ============================================================
+# ~/.hermes/config.yaml 에 병합할 스니펫 (2026-10-15)
+# 목적: step-5-preview 429 해소 — 유료 공식 채널을 메인으로,
+#       기존 무료 프로모션 엔드포인트는 fallback으로 강등
+# ============================================================
+
+# 메인 모델: StepFun 공식 API (네이티브 provider)
+# V0 티어(충전 $15 미만)라도 100 RPM / 500K TPM → 단일 에이전트엔 사실상 무제한
+model: stepfun/step-5-preview
+
+# 장애/한도 발생 시 아래 순서대로 자동 전환 (세션 유지됨)
+fallback_providers:
+  # 1) 같은 모델을 OpenRouter 경유로 (유료 변형은 플랫폼 요청 캡 없음, $1/$2.7 per 1M)
+  - provider: openrouter
+    model: stepfun/step-5-preview
+
+  # 2) 기존 무료 프로모션 custom 엔드포인트 (프로모션 종료 시 자동으로 건너뜀)
+  #    base_url/key_env 는 현재 사용 중인 값으로 교체할 것
+  - provider: custom
+    model: stepfun/step-5-preview-free
+    base_url: https://YOUR-FREE-ENDPOINT/v1   # ← 현재 custom 엔드포인트 주소
+    key_env: STEP5_FREE_KEY                   # ← ~/.hermes/.env 의 키 변수명
+
+  # 3) 최후의 저비용 수단: StepFun 경량 모델 ($0.10/$0.30 per 1M)
+  - provider: stepfun
+    model: step-3.5-flash
+
+fallback:
+  # 429 reset 이 120초 이내면 provider 전환 대신 백오프로 대기
+  # (전환 시 프롬프트 캐시가 날아가서 긴 대화에선 오히려 비쌈)
+  min_switch_reset_seconds: 120
+
+# ------------------------------------------------------------
+# ~/.hermes/.env 에 추가할 키 (hermes config set <NAME> <VALUE> 로 저장 가능)
+# ------------------------------------------------------------
+# STEPFUN_API_KEY=       ← platform.stepfun.ai 에서 발급 (메인)
+# OPENROUTER_API_KEY=    ← sk-or-v1-... (fallback 1순위용)
+# STEP5_FREE_KEY=        ← 기존 무료 엔드포인트 키 (fallback 2순위용)

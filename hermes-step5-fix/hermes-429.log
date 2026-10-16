@@ -1,0 +1,8 @@
+── Hermes error details ──
+time: 2026-10-15T12:31:05.381Z
+layer: provider
+code: rate_limit
+retryable: true
+provider: custom
+model: stepfun/step-5-preview-free
+error: HTTP 429: Provider returned errord
